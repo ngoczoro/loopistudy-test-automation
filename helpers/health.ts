@@ -67,6 +67,7 @@ export async function waitForHealth(options?: {
   const detail = last.error ?? `status ${last.status}`;
   throw new Error(
     `Backend not healthy at ${env.apiURL}/health (${detail}). ` +
-      `Start loopistudy-backend and run npm run db:seed:demo before E2E.`,
+      `Start loopistudy-backend (listening on 127.0.0.1) and run npm run db:seed:demo. ` +
+      `If the error mentions ::1, set API_URL=http://127.0.0.1:5000 in .env.`,
   );
 }
