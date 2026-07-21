@@ -4,6 +4,7 @@ import { waitForHealth } from '../../helpers/health';
 import { waitForFrontend } from '../../helpers/frontend';
 import { NotesPage } from '../../pages/NotesPage';
 import { uniqueLabel } from '../../helpers/testData';
+import { cleanupContentByTitle, safeCleanup } from '../../helpers/apiCleanup';
 
 test.describe('notes', () => {
   test.skip(
@@ -16,19 +17,25 @@ test.describe('notes', () => {
     await waitForFrontend({ timeoutMs: 15_000 });
   });
 
-  test('student can create and delete a note', async ({ page, asStudent }) => {
+  test('student can create and delete a note', async ({ page, asStudent, studentSession }) => {
     void asStudent;
     const notes = new NotesPage(page);
     const title = uniqueLabel('E2E Note');
 
-    await notes.goto();
-    await notes.createNote(title, 'Automation note body');
+    try {
+      await notes.goto();
+      await notes.createNote(title, 'Automation note body');
 
-    await expect(notes.toast(/Note created successfully/i)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(title, { exact: true })).toBeVisible();
+      await expect(notes.toast(/Note created successfully/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(title, { exact: true })).toBeVisible();
 
-    await notes.deleteNote(title);
-    await expect(notes.toast(/Content deleted successfully/i)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+      await notes.deleteNote(title);
+      await expect(notes.toast(/Content deleted successfully/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+    } finally {
+      await safeCleanup(async () => {
+        await cleanupContentByTitle(studentSession.accessToken, title);
+      });
+    }
   });
 });

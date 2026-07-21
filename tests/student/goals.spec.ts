@@ -4,6 +4,7 @@ import { waitForHealth } from '../../helpers/health';
 import { waitForFrontend } from '../../helpers/frontend';
 import { GoalsPage } from '../../pages/GoalsPage';
 import { uniqueLabel } from '../../helpers/testData';
+import { cleanupGoalsByTitle, safeCleanup } from '../../helpers/apiCleanup';
 
 test.describe('goals', () => {
   test.skip(
@@ -16,19 +17,25 @@ test.describe('goals', () => {
     await waitForFrontend({ timeoutMs: 15_000 });
   });
 
-  test('student can create and delete a goal', async ({ page, asStudent }) => {
+  test('student can create and delete a goal', async ({ page, asStudent, studentSession }) => {
     void asStudent;
     const goals = new GoalsPage(page);
     const title = uniqueLabel('E2E Goal');
 
-    await goals.goto();
-    await goals.createGoal(title, '3');
+    try {
+      await goals.goto();
+      await goals.createGoal(title, '3');
 
-    await expect(goals.toast(/Goal created/i)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(title)).toBeVisible();
+      await expect(goals.toast(/Goal created/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(title)).toBeVisible();
 
-    await goals.deleteGoal(title);
-    await expect(goals.toast(/Goal deleted/i)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(title)).toHaveCount(0);
+      await goals.deleteGoal(title);
+      await expect(goals.toast(/Goal deleted/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(title)).toHaveCount(0);
+    } finally {
+      await safeCleanup(async () => {
+        await cleanupGoalsByTitle(studentSession.accessToken, title);
+      });
+    }
   });
 });
