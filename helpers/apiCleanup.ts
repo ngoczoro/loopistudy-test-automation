@@ -93,6 +93,22 @@ async function apiPostJson<T = unknown>(
   }
 }
 
+async function apiPatch(token: string, path: string, data?: unknown): Promise<boolean> {
+  const ctx = await request.newContext({
+    baseURL: env.apiURL,
+    extraHTTPHeaders: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  try {
+    const response = await ctx.patch(`/api/v1${path}`, { data: data ?? {} });
+    return response.ok();
+  } finally {
+    await ctx.dispose();
+  }
+}
+
 function asArray<T>(data: unknown): T[] {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === 'object' && Array.isArray((data as { items?: T[] }).items)) {
@@ -261,6 +277,26 @@ export async function cleanupAiPlanSessions(token: string): Promise<void> {
   for (const session of sessions.filter((s) => s.source === 'ai_plan')) {
     await apiDelete(token, `/planner/sessions/${session.id}`);
   }
+}
+
+/**
+ * Unlock a student by email if currently LOCKED (admin token required).
+ * Used to restore Jamie after lock/unlock E2E without touching Sam.
+ */
+export async function ensureStudentUnlocked(
+  adminToken: string,
+  email: string,
+): Promise<void> {
+  const data = await apiGet<{
+    users?: Array<{ id: string; email: string; status?: string }>;
+  }>(adminToken, '/admin/users', { search: email, limit: '20' });
+
+  const user = (data?.users ?? []).find(
+    (u) => u.email.toLowerCase() === email.toLowerCase(),
+  );
+  if (!user) return;
+  if (String(user.status ?? '').toUpperCase() !== 'LOCKED') return;
+  await apiPatch(adminToken, `/admin/users/${user.id}/unlock`);
 }
 
 /**
