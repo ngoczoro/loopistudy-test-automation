@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
+// Keep localhost for Vite (often bound to ::1 only on Windows).
 const baseURL = process.env.BASE_URL ?? 'http://localhost:5173';
 
 /**
