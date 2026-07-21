@@ -10,6 +10,8 @@
     "test:smoke": "playwright test tests/smoke",
     "test:auth": "playwright test tests/auth --project=chromium",
     "test:auth:all": "playwright test tests/auth",
+    "test:student": "playwright test tests/student --project=chromium",
+    "test:student:all": "playwright test tests/student",
     "report": "playwright show-report"
   },
   "keywords": [],
