@@ -8,13 +8,14 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@helpers/*": ["helpers/*"],
-      "@data/*": ["data/*"],
-      "@pages/*": ["pages/*"],
-      "@fixtures/*": ["fixtures/*"]
-    }
+    "noEmit": true
   },
-  "include": ["**/*.ts"]
+  "include": [
+    "tests/**/*.ts",
+    "pages/**/*.ts",
+    "helpers/**/*.ts",
+    "fixtures/**/*.ts",
+    "data/**/*.ts",
+    "playwright.config.ts"
+  ]
 }

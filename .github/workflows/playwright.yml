@@ -1,27 +1,129 @@
 name: Playwright Tests
+
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Suite to run (smoke | auth | student | study | quiz | admin | all)'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - auth
+          - student
+          - study
+          - quiz
+          - admin
+          - all
+
+concurrency:
+  group: playwright-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  # Always-on: env/config sanity (no live FE/BE required)
+  smoke:
+    name: Smoke (no services)
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run smoke suite
+        run: npm run test:ci:smoke
+        env:
+          CI: true
+          REQUIRE_SERVICES: 'false'
+          BASE_URL: http://localhost:5173
+          API_URL: http://127.0.0.1:5000
+          STUDENT_EMAIL: alex.demo@loopi.com
+          STUDENT_PASSWORD: Demo1234!
+          ADMIN_EMAIL: admin@loopi.com
+          ADMIN_PASSWORD: admin123
+          LOCKED_EMAIL: sam.demo@loopi.com
+          LOCKED_PASSWORD: Demo1234!
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: smoke-report
+          path: playwright-report/
+          retention-days: 14
+
+  # Optional: full chromium E2E against a reachable stack (local staging / deployed env)
+  e2e:
+    name: E2E (services required)
+    if: github.event_name == 'workflow_dispatch'
+    needs: smoke
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Resolve suite script
+        id: suite
+        shell: bash
+        run: |
+          case "${{ github.event.inputs.suite }}" in
+            smoke) echo "cmd=npm run test:ci:smoke" >> "$GITHUB_OUTPUT" ;;
+            auth) echo "cmd=npm run test:auth" >> "$GITHUB_OUTPUT" ;;
+            student) echo "cmd=npm run test:student" >> "$GITHUB_OUTPUT" ;;
+            study) echo "cmd=npm run test:study" >> "$GITHUB_OUTPUT" ;;
+            quiz) echo "cmd=npm run test:quiz" >> "$GITHUB_OUTPUT" ;;
+            admin) echo "cmd=npm run test:admin" >> "$GITHUB_OUTPUT" ;;
+            all) echo "cmd=npm run test:ci" >> "$GITHUB_OUTPUT" ;;
+            *) echo "cmd=npm run test:ci:smoke" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Run E2E suite
+        run: ${{ steps.suite.outputs.cmd }}
+        env:
+          CI: true
+          REQUIRE_SERVICES: 'true'
+          BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          API_URL: ${{ secrets.E2E_API_URL }}
+          STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+          STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          LOCKED_EMAIL: ${{ secrets.E2E_LOCKED_EMAIL }}
+          LOCKED_PASSWORD: ${{ secrets.E2E_LOCKED_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-report-${{ github.event.inputs.suite }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
