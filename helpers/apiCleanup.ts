@@ -71,6 +71,28 @@ async function apiPost(token: string, path: string, data?: unknown): Promise<voi
   }
 }
 
+async function apiPostJson<T = unknown>(
+  token: string,
+  path: string,
+  data?: unknown,
+): Promise<T | null> {
+  const ctx = await request.newContext({
+    baseURL: env.apiURL,
+    extraHTTPHeaders: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  try {
+    const response = await ctx.post(`/api/v1${path}`, { data: data ?? {} });
+    if (!response.ok()) return null;
+    const body = (await response.json()) as Json;
+    return (body.data as T) ?? null;
+  } finally {
+    await ctx.dispose();
+  }
+}
+
 function asArray<T>(data: unknown): T[] {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === 'object' && Array.isArray((data as { items?: T[] }).items)) {
@@ -191,6 +213,53 @@ export async function cleanupE2ePlannerLeftovers(
   for (const subject of subjects.filter((s) => s.name.startsWith(prefix))) {
     await cleanupPlannerSessionsBySubjectId(token, subject.id);
     await apiDelete(token, `/subjects/${subject.id}`);
+  }
+}
+
+export async function createQuizViaApi(
+  token: string,
+  title: string,
+): Promise<{ id: string; title: string } | null> {
+  return apiPostJson(token, '/quizzes', {
+    title,
+    source: 'manual',
+    questions: [
+      {
+        question: 'E2E placeholder — what is 2+2?',
+        options: ['3', '4', '5', '22'],
+        correctIndex: 1,
+        explanation: 'Basic arithmetic.',
+        difficulty: 'easy',
+      },
+    ],
+  });
+}
+
+export async function cleanupQuizzesByTitle(token: string, title: string): Promise<void> {
+  const list = asArray<{ id: string; title: string }>(await apiGet(token, '/quizzes'));
+  for (const quiz of list.filter((q) => q.title === title)) {
+    await apiDelete(token, `/quizzes/${quiz.id}`);
+  }
+}
+
+export async function cleanupQuizzesByTitlePrefix(
+  token: string,
+  prefix: string,
+): Promise<void> {
+  const list = asArray<{ id: string; title: string }>(await apiGet(token, '/quizzes'));
+  for (const quiz of list.filter((q) => q.title.startsWith(prefix))) {
+    await apiDelete(token, `/quizzes/${quiz.id}`);
+  }
+}
+
+/** Remove AI-plan sessions created during E2E (source=ai_plan). */
+export async function cleanupAiPlanSessions(token: string): Promise<void> {
+  const weekStartDate = mondayOfWeek();
+  const sessions = asArray<{ id: string; source?: string }>(
+    await apiGet(token, '/planner/sessions', { weekStartDate }),
+  );
+  for (const session of sessions.filter((s) => s.source === 'ai_plan')) {
+    await apiDelete(token, `/planner/sessions/${session.id}`);
   }
 }
 

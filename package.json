@@ -14,6 +14,8 @@
     "test:student:all": "playwright test tests/student",
     "test:study": "playwright test tests/study --project=chromium",
     "test:study:all": "playwright test tests/study",
+    "test:quiz": "playwright test tests/quiz --project=chromium",
+    "test:quiz:all": "playwright test tests/quiz",
     "report": "playwright show-report"
   },
   "keywords": [],
