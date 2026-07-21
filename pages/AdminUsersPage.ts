@@ -16,9 +16,19 @@ export class AdminUsersPage {
   }
 
   async search(query: string) {
-    await this.page.getByPlaceholder('Search by name or email…').fill(query);
-    // Debounce is 300ms
-    await this.page.waitForTimeout(500);
+    const input = this.page.getByPlaceholder('Search by name or email…');
+    await input.fill(query);
+    // Debounce is 300ms — prefer polling over fixed sleep
+    await expect
+      .poll(
+        async () => {
+          const rows = await this.page.locator('tbody tr').count();
+          const empty = await this.page.getByText(/No users found/i).count();
+          return rows + empty;
+        },
+        { timeout: 10_000, intervals: [250, 400, 600] },
+      )
+      .toBeGreaterThan(0);
   }
 
   async filterStatus(status: 'All' | 'Active' | 'Locked') {
